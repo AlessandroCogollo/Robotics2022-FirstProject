@@ -8,51 +8,46 @@
 double y = 0;
 double x = 0;
 
-// TODO: to change (seen on GitHub)
-enum Wheels {front_left, front_right, rear_left, rear_right};
+std::vector<double> speeds;
+std::vector<double> OldPosition{ 0, 0, 0, 0};
+std::vector<double> NewPosition;
+
+enum WheelsPosition {fl, fr, rl, rr};
 
 struct RobotParams {
-	double gearRatio, wheelRadius, wheelAlongX, wheelAlongY, encoderResolution;
+	int gearRatio, encoderResolution;
+	double wheelRadius, wheelAlongX, wheelAlongY;
 };
 
-double vxFromWheelSpeeds(std::vector<double> speeds){
-    //return -(r/4)*(speeds[front_left]+speeds[front_right]+speeds[rear_left]+speeds[rear_right]);
-    return -(0.07/4)*(speeds[front_left]+speeds[front_right]+speeds[rear_left]+speeds[rear_right]);
-}
-
-double vyFromWheelSpeeds(std::vector<double> speeds){
-    //return (r/4)*(speeds[front_left]-speeds[front_right]-speeds[rear_left]+speeds[rear_right]);
-    return (0.07/4)*(speeds[front_left]-speeds[front_right]-speeds[rear_left]+speeds[rear_right]);
-}
-
-// TODO: to change (seen on GitHub)
-geometry_msgs::TwistStamped velFromEncoders(const sensor_msgs::JointState::ConstPtr& msg) {
-	std::vector<double> positions = msg->position;
-  	std::vector<double> speeds = msg->velocity;
-
-  	double vx = vxFromWheelSpeeds(speeds);
- 	double vy = vyFromWheelSpeeds(speeds);
-  	y+=vy;
-  	x+=vx;
-
-	geometry_msgs::TwistStamped topub;
-	topub.twist.linear.x = x;
-    topub.twist.linear.y = y;
-    
-}
+void speedFromEncoders(const sensor_msgs::JointState::ConstPtr& msg) {
+	float vfl, vfr, vrl, vrr;
+	for (int i = 0; i < 4; i++) {
+		 NewPosition.push_back(msg->position[i]);
+	}
+	OldPosition = NewPosition;
+};
 
 int main(int argc, char **argv) {
 	ros::init(argc, argv, "computevelocity");
 	ros::NodeHandle n;
 
-	ros::Subscriber sub_wheel_states = n.subscribe("wheel_states", 1000);
+	// retrieve RobotParameters from up.launch
+	RobotParams RobParams;
+	ros::param::get("/gearRatio", RobParams.gearRatio);
+	ros::param::get("/wheelRadius", RobParams.wheelRadius);
+	ros::param::get("/wheelAlongX", RobParams.wheelAlongX);
+	ros::param::get("/wheelAlongY", RobParams.wheelAlongY);
+	ros::param::get("/encoderResolution", RobParams.encoderResolution);
+
+	ROS_INFO("gearRatio: %d, wheelRadius: %lf, wheelAlongX: %lf", RobParams.gearRatio, RobParams.wheelRadius, RobParams.wheelAlongX);
+
+	ros::Subscriber sub_wheel_states = n.subscribe("wheel_states", 1000, speedFromEncoders);
 	ros::Publisher velocity_update = n.advertise<geometry_msgs::TwistStamped>("cmd_vel", 1000);
 
 	ros::Rate loop_rate(100);
 
 	while (ros::ok()) {
 
-	    // generate velocity update msg
 	    ros::spinOnce();
 
 	    loop_rate.sleep();

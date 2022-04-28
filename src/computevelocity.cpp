@@ -17,6 +17,9 @@ ros::Time current_time;
 ros::Time old_time;
 
 ros::Publisher velocity_update;
+ros::Subscriber sub_velocity_update;
+
+ros::Publisher wheels_rpm;
 
 enum WheelsPosition {fl, fr, rl, rr};
 
@@ -71,6 +74,34 @@ void speedFromEncoders(const sensor_msgs::JointState::ConstPtr& msg) {
 	old_time = current_time;
 };
 
+void wheel_speeds_from_cmd_vel(const geometry_msgs::TwistStamped::ConstPtr& msg) {
+	//saving three velocities of the robot from cmd_vel topic
+	double robot_linear_velocity_x = msg.twist.linear.x;
+	double robot_linear_velocity_y = msg.twist.linear.y;
+	double robot_angular_velocity_z = msg.twist.angular.z;
+
+	//calculating wheels' velocities
+	//wheel 1
+	float fl_wheel_velocity = (1/RobotParams.wheelRadius) * ((- RobotParams.wheelAlongX - RobotParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x - robot_linear_velocity_y);
+	//wheel 2
+	float fr_wheel_velocity = (1/RobotParams.wheelRadius) * ((RobotParams.wheelAlongX + RobotParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x + robot_linear_velocity_y);
+	//wheel 3
+	float rr_wheel_velocity = (1/RobotParams.wheelRadius) * ((RobotParams.wheelAlongX + RobotParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x - robot_linear_velocity_y);
+	//wheel 4
+	float rl_wheel_velocity = (1/RobotParams.wheelRadius) * ((- RobotParams.wheelAlongX - RobotParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x + robot_linear_velocity_y);
+
+	//creating the message that will be published in wheels_rpm topic
+	wheels_rpm_msg msg_to_publish;
+	msg_to_publish.header.stamp.sec = current_time.toSec();
+	msg_to_publish.rmp_fl = fl_wheel_velocity;
+	msg_to_publish.rmp_fr = fr_wheel_velocity;
+	msg_to_publish.rmp_rr = rr_wheel_velocity;
+	msg_to_publish.rmp_rl = rr_wheel_velocity;
+
+	//publishing the message
+	wheels_rpm.publish(msg_to_publish);
+}
+
 int main(int argc, char **argv) {
 	ros::init(argc, argv, "computevelocity");
 	ros::NodeHandle n;
@@ -82,8 +113,15 @@ int main(int argc, char **argv) {
 	ros::param::get("/wheelAlongY", RobParams.wheelAlongY);
 	ros::param::get("/encoderResolution", RobParams.encoderResolution);
 
-	velocity_update = n.advertise<geometry_msgs::TwistStamped>("cmd_vel", 1000);
+	//subscribing to wheel_states topic, created from the bag. Callback function will calculate robot's linear velocities along x and y and angular velocities along z 
 	ros::Subscriber sub_wheel_states = n.subscribe("wheel_states", 1000, speedFromEncoders);
+
+	velocity_update = n.advertise<geometry_msgs::TwistStamped>("cmd_vel", 1000);
+
+	//subscribing to cmd_vel topic, where the velocity_update publishes. Callback function will calculate wheels velocities
+	ros::Subscriber sub_velocity_update = n.subscribe("cmd_vel", 1000, wheel_speeds_from_cmd_vel);
+	//calculated velocities are published in wheel_rpm topic
+	wheels_rpm = n.advertise<wheels_rpm_msg>("wheel_rpm", 1000)
 
 	ros::Rate loop_rate(100);
 

@@ -38,7 +38,6 @@ void speedFromEncoders(const sensor_msgs::JointState::ConstPtr& msg) {
 
 	ros::Time current_time = msg->header.stamp; 
 	float ticks_dt = (current_time - old_time).toSec();
-	// ticks_dtm is 1s, because speedFromEncoders is a callback triggered every 1s 
 	float ticks_dtm = ticks_dt / 60;
 
 	for (int i = 0; i < 4; i++) {

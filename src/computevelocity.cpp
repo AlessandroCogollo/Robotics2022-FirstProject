@@ -9,6 +9,7 @@
 #include <sensor_msgs/JointState.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <first_project/wheels_rpm_msg.h>
+#include <first_project/reset.h>
 #include <nav_msgs/Odometry.h>
 #include <chrono>
 
@@ -47,6 +48,19 @@ struct RobotParams {
 
 
 RobotParams RobParams;
+
+bool reset_callback(first_project::reset::Request  &req, 
+                    first_project::reset::Response &res) {
+
+	//TODO (optional): print old position
+	x = req.new_x;
+	y = req.new_y;
+	theta = req.new_ang;
+
+	ROS_INFO("Position reset");
+	
+	return true;
+}
 
 void speedFromEncoders(const sensor_msgs::JointState::ConstPtr& msg) {
 
@@ -210,6 +224,10 @@ int main(int argc, char **argv) {
 
 	//after calculating new poses with euler algorithm, ther are published in odom topic
 	euler_odometry = n.advertise<nav_msgs::Odometry>("odom", 1000);
+
+	//Define reset service handler
+  	ros::ServiceServer service = n.advertiseService<first_project::reset::Request, 
+                         first_project::reset::Response>("Reset", reset_callback);
 
 	ros::Rate loop_rate(100);
 

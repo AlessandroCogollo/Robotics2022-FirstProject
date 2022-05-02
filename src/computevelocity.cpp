@@ -8,6 +8,8 @@
 #include <ros/console.h>
 #include <sensor_msgs/JointState.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <first_project/wheels_rpm_msg.h>
+#include <nav_msgs/Odometry.h>
 #include <chrono>
 
 double x = 0;
@@ -23,8 +25,6 @@ ros::Time old_time_odom;
 
 //publishes messages that has robot's velocities informations
 ros::Publisher velocity_update;
-<<<<<<< Updated upstream
-=======
 
 //subscribes to velocity_update to read robot's velocities messages to calcilate wheels speeds
 ros::Subscriber sub_velocity_update_for_wheels_speeds;
@@ -37,7 +37,6 @@ ros::Publisher euler_odometry;
 
 
 ros::Publisher wheels_rpm;
->>>>>>> Stashed changes
 
 enum WheelsPosition {fl, fr, rl, rr};
 
@@ -93,32 +92,30 @@ void speedFromEncoders(const sensor_msgs::JointState::ConstPtr& msg) {
 	old_time = current_time;
 };
 
-<<<<<<< Updated upstream
-=======
 //callback function that reads message from cmd_vel topic and uses it to calculate wheel speeds
 void wheel_speeds_from_cmd_vel(const geometry_msgs::TwistStamped::ConstPtr& msg) {
 	//saving three velocities of the robot from cmd_vel topic
-	double robot_linear_velocity_x = msg.twist.linear.x;
-	double robot_linear_velocity_y = msg.twist.linear.y;
-	double robot_angular_velocity_z = msg.twist.angular.z;
+	double robot_linear_velocity_x = msg->twist.linear.x;
+	double robot_linear_velocity_y = msg->twist.linear.y;
+	double robot_angular_velocity_z = msg->twist.linear.y;
 
 	//calculating wheels' velocities
 	//wheel 1
-	float fl_wheel_velocity = (1/RobotParams.wheelRadius) * ((- RobotParams.wheelAlongX - RobotParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x - robot_linear_velocity_y);
+	float fl_wheel_velocity = ( 1 / RobParams.wheelRadius ) * ((- RobParams.wheelAlongX - RobParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x - robot_linear_velocity_y);
 	//wheel 2
-	float fr_wheel_velocity = (1/RobotParams.wheelRadius) * ((RobotParams.wheelAlongX + RobotParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x + robot_linear_velocity_y);
+	float fr_wheel_velocity = (1/RobParams.wheelRadius) * ((RobParams.wheelAlongX + RobParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x + robot_linear_velocity_y);
 	//wheel 3
-	float rr_wheel_velocity = (1/RobotParams.wheelRadius) * ((RobotParams.wheelAlongX + RobotParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x - robot_linear_velocity_y);
+	float rr_wheel_velocity = (1/RobParams.wheelRadius) * ((RobParams.wheelAlongX + RobParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x - robot_linear_velocity_y);
 	//wheel 4
-	float rl_wheel_velocity = (1/RobotParams.wheelRadius) * ((- RobotParams.wheelAlongX - RobotParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x + robot_linear_velocity_y);
+	float rl_wheel_velocity = (1/RobParams.wheelRadius) * ((- RobParams.wheelAlongX - RobParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x + robot_linear_velocity_y);
 
 	//creating the message that will be published in wheels_rpm topic
-	wheels_rpm_msg msg_to_publish;
+	first_project::wheels_rpm_msg msg_to_publish;
 	msg_to_publish.header.stamp.sec = current_time.toSec();
-	msg_to_publish.rmp_fl = fl_wheel_velocity;
-	msg_to_publish.rmp_fr = fr_wheel_velocity;
-	msg_to_publish.rmp_rr = rr_wheel_velocity;
-	msg_to_publish.rmp_rl = rr_wheel_velocity;
+	msg_to_publish.rpm_fl = fl_wheel_velocity;
+	msg_to_publish.rpm_fr = fr_wheel_velocity;
+	msg_to_publish.rpm_rr = rr_wheel_velocity;
+	msg_to_publish.rpm_rl = rr_wheel_velocity;
 
 	//publishing the message
 	wheels_rpm.publish(msg_to_publish);
@@ -141,7 +138,7 @@ void euler_odometry_algorithm(const geometry_msgs::TwistStamped::ConstPtr& msg) 
 	float theta_after_dt = theta + omega * dt;
 
 	//creating and publishing the message that contains informations of new pose of the robot
-	nav_msgs/Odometry msg_to_publish;
+	nav_msgs::Odometry msg_to_publish;
 	msg_to_publish.header.stamp.sec = current_time.toSec();
 	msg_to_publish.pose.pose.position.x = x_after_dt;
 	msg_to_publish.pose.pose.position.y = y_after_dt;
@@ -188,7 +185,6 @@ void runge_kutta_algorithm(const geometry_msgs::TwistStamped::ConstPtr& msg) {
 }
 */
 
->>>>>>> Stashed changes
 int main(int argc, char **argv) {
 	ros::init(argc, argv, "computevelocity");
 	ros::NodeHandle n;
@@ -201,22 +197,19 @@ int main(int argc, char **argv) {
 	ros::param::get("/encoderResolution", RobParams.encoderResolution);
 
 	velocity_update = n.advertise<geometry_msgs::TwistStamped>("cmd_vel", 1000);
-<<<<<<< Updated upstream
 	ros::Subscriber sub_wheel_states = n.subscribe("wheel_states", 1000, speedFromEncoders);
-=======
 
 	//subscribing to cmd_vel topic, where the velocity_update publishes. Callback function will calculate wheels velocities
 	ros::Subscriber sub_velocity_update_for_wheels_speeds = n.subscribe("cmd_vel", 1000, wheel_speeds_from_cmd_vel);
 	
 	//calculated velocities are published in wheel_rpm topic
-	wheels_rpm = n.advertise<wheels_rpm_msg>("wheel_rpm", 1000)
->>>>>>> Stashed changes
+	wheels_rpm = n.advertise<first_project::wheels_rpm_msg>("wheel_rpm", 1000);
 
 	//subscribing to cmd_vel topic, where the velocity_update publishes. Callback function will calculate new robot's pose using euler algorithm
 	ros::Subscriber sub_velocity_update_for_Odometry = n.subscribe("cmd_vel", 1000, euler_odometry_algorithm);
 
 	//after calculating new poses with euler algorithm, ther are published in odom topic
-	euler_odometry = n.advertise<nav_msgs/Odometry>("odom", 1000);
+	euler_odometry = n.advertise<nav_msgs::Odometry>("odom", 1000);
 
 	ros::Rate loop_rate(100);
 

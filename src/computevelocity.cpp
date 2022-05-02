@@ -1,17 +1,20 @@
+#include "math.h"
 #include "ros/ros.h"
 
-#include "std_msgs/String.h"
-
-#include "math.h"
-
+#include <chrono>
 #include <iostream>
 #include <ros/console.h>
+
+#include "std_msgs/String.h"
 #include <sensor_msgs/JointState.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <nav_msgs/Odometry.h>
+
+#include <first_project/ParametersConfig.h>
 #include <first_project/wheels_rpm_msg.h>
 #include <first_project/reset.h>
-#include <nav_msgs/Odometry.h>
-#include <chrono>
+
+#include <dynamic_reconfigure/server.h>
 
 double x = 0;
 double y = 0;
@@ -48,6 +51,10 @@ struct RobotParams {
 
 
 RobotParams RobParams;
+
+void dynamicReconfigureCallback(first_project::ParametersConfig &config) {
+   	ROS_INFO("Test");
+}
 
 bool reset_callback(first_project::reset::Request  &req, 
                     first_project::reset::Response &res) {
@@ -210,6 +217,10 @@ int main(int argc, char **argv) {
 	ros::param::get("/wheelAlongY", RobParams.wheelAlongY);
 	ros::param::get("/encoderResolution", RobParams.encoderResolution);
 
+	//defining dynamic reconfigure server
+	dynamic_reconfigure::Server<first_project::ParametersConfig> server;
+    server.setCallback(boost::bind(&dynamicReconfigureCallback, _1));
+
 	velocity_update = n.advertise<geometry_msgs::TwistStamped>("cmd_vel", 1000);
 	ros::Subscriber sub_wheel_states = n.subscribe("wheel_states", 1000, speedFromEncoders);
 
@@ -225,7 +236,7 @@ int main(int argc, char **argv) {
 	//after calculating new poses with euler algorithm, ther are published in odom topic
 	euler_odometry = n.advertise<nav_msgs::Odometry>("odom", 1000);
 
-	//Define reset service handler
+	//defining reset service handler
   	ros::ServiceServer service = n.advertiseService<first_project::reset::Request, 
                          first_project::reset::Response>("Reset", reset_callback);
 

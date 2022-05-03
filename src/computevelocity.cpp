@@ -16,6 +16,9 @@
 
 #include <dynamic_reconfigure/server.h>
 
+// Euler (default, 0), RK (1)
+int integrationMethod = 0;
+
 double x = 0;
 double y = 0;
 double theta = 0;
@@ -53,7 +56,8 @@ struct RobotParams {
 RobotParams RobParams;
 
 void dynamicReconfigureCallback(first_project::ParametersConfig &config) {
-   	ROS_INFO("Test");
+	integrationMethod = config.integration_method;
+	ROS_INFO("New integrationMethod: %n", &integrationMethod);
 }
 
 bool reset_callback(first_project::reset::Request  &req, 
@@ -151,12 +155,31 @@ void euler_odometry_algorithm(const geometry_msgs::TwistStamped::ConstPtr& msg) 
 	float vx = msg->twist.linear.x;
 	float vy = msg->twist.linear.y;
 	float omega = msg->twist.angular.z;
+
 	float v = sqrt(pow(vx, 2) + pow(vy, 2));
 
-	//applying euler algoritm for the odometry 
-	float x_after_dt = x + v * dt * cos(theta);
-	float y_after_dt = y + v * dt * sin(theta);
-	float theta_after_dt = theta + omega * dt;
+	float x_after_dt, y_after_dt, theta_after_dt;
+
+	switch(integrationMethod) {
+		case 0: {
+			//applying euler algoritm for the odometry 
+			x_after_dt = x + v * dt * cos(theta);
+			y_after_dt = y + v * dt * sin(theta);
+			theta_after_dt = theta + omega * dt;
+		} break;
+		case 1: {
+			//applying runge-kutta algorithm for the odometry
+			x_after_dt = x + v * dt * cos(theta + (omega * dt)/2);
+			y_after_dt = y + v * dt * sin(theta + (omega * dt)/2);
+			theta_after_dt = theta + omega * dt;
+		} break;
+		default: {
+			//applying euler algoritm for the odometry 
+			x_after_dt = x + v * dt * cos(theta);
+			y_after_dt = y + v * dt * sin(theta);
+			theta_after_dt = theta + omega * dt;
+		} break;
+	}
 
 	//creating and publishing the message that contains informations of new pose of the robot
 	nav_msgs::Odometry msg_to_publish;

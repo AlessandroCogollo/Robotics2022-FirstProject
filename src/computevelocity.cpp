@@ -5,15 +5,23 @@
 #include <iostream>
 #include <ros/console.h>
 
+// msg libraries
 #include "std_msgs/String.h"
 #include <sensor_msgs/JointState.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <geometry_msgs/TransformStamped.h>
 #include <nav_msgs/Odometry.h>
 
+// utils
 #include <first_project/ParametersConfig.h>
 #include <first_project/wheels_rpm_msg.h>
 #include <first_project/reset.h>
 
+// tf2 broadcaster libraries
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_ros/transform_broadcaster.h>
+
+// dynamic reconfigure libraries
 #include <dynamic_reconfigure/server.h>
 
 // Euler (default, 0), RK (1)
@@ -183,13 +191,47 @@ void euler_odometry_algorithm(const geometry_msgs::TwistStamped::ConstPtr& msg) 
 
 	//creating and publishing the message that contains informations of new pose of the robot
 	nav_msgs::Odometry msg_to_publish;
-	msg_to_publish.header.stamp.sec = current_time.toSec();
+	msg_to_publish.header.stamp.sec = current_time_odom.toSec();
 	msg_to_publish.pose.pose.position.x = x_after_dt;
 	msg_to_publish.pose.pose.position.y = y_after_dt;
 	msg_to_publish.pose.pose.orientation.z = theta_after_dt;
 
-	//publishing the message
+	//publishing the message via euler_odometry
 	euler_odometry.publish(msg_to_publish);
+
+	static tf2_ros::TransformBroadcaster tf2_broadcaster;
+    geometry_msgs::TransformStamped transformStamped;
+
+    transformStamped.header.stamp = current_time_odom;
+    transformStamped.header.frame_id = "world";
+    transformStamped.child_frame_id = "robot";
+
+    // TODO
+    transformStamped.transform.translation.x = msg_to_publish.pose.pose.position.x;
+    transformStamped.transform.translation.y = msg_to_publish.pose.pose.position.y;
+    transformStamped.transform.translation.z = msg_to_publish.pose.pose.orientation.z;
+
+    tf2::Quaternion q;
+
+    q.setRPY(0, 0, msg_to_publish.pose.pose.orientation.z);
+
+    transformStamped.transform.rotation.x = q.x();
+    transformStamped.transform.rotation.y = q.y();
+    transformStamped.transform.rotation.z = q.z();
+    transformStamped.transform.rotation.w = q.w(); 
+
+ 	tf2_broadcaster.sendTransform(transformStamped);
+
+  	/*	
+  	// Formulas from odom to world
+  	this->xa = this->xa + ((vm[1])*cos(this->th)-vm[0]*sin(this->th))*dt;
+    this->ya = this->ya+ ((vm[1])*sin(this->th)+vm[0]*cos(this->th))*dt;
+    //this->xa = this->xa + ((vm[1])*cos(this->th+(vm[2]*dt/2))-vm[0]*sin(this->th+(vm[2]*dt/2)))*dt;
+    //this->ya = this->ya+ ((vm[1])*sin(this->th+(vm[2]*dt/2))+vm[0]*cos(this->th+(vm[2]*dt/2)))*dt;
+	*/
+
+	//broadcasting the message via odom_broadcaster
+	// odom_broadcaster.sendTransform(tf_msg);
 
 	//updating variables for next use
 	x = x_after_dt;
@@ -197,37 +239,6 @@ void euler_odometry_algorithm(const geometry_msgs::TwistStamped::ConstPtr& msg) 
 	theta = theta_after_dt;
 	old_time_odom = current_time_odom;
 }
-
-/*
-void runge_kutta_algorithm(const geometry_msgs::TwistStamped::ConstPtr& msg) {
-	current_time_odom = msg->header.stamp;
-	float dt = (current_time_odom - old_time_odom).toSec();
-
-	float vx = msg->twist.linear.x;
-	float vy = msg->twist.linear.y;
-	float omega = msg->twist.angular.z;
-
-	float v = sqrt(pow(vx, 2) + pow(vy, 2));
-
-	float x_after_dt = x + v * dt * cos(theta + (omega * dt)/2);
-	float y_after_dt = y + v * dt * sin(theta + (omega * dt)/2);
-	float theta_after_dt = theta + omega * dt;
-
-	nav_msgs/Odometry msg_to_publish;
-	msg_to_publish.header.stamp.sec = current_time.toSec();
-	msg_to_publish.pose.pose.position.x = x_after_dt;
-	msg_to_publish.pose.pose.position.y = y_after_dt;
-	msg_to_publish.pose.pose.orientation.z = theta_after_dt;
-
-	euler_odometry.publish(msg_to_publish);
-
-	x = x_after_dt;
-	y = y_after_dt;
-	theta = theta_after_dt;
-
-	old_time_odom = current_time_odom;
-}
-*/
 
 int main(int argc, char **argv) {
 	ros::init(argc, argv, "computevelocity");

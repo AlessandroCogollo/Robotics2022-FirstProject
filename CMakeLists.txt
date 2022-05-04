@@ -6,6 +6,9 @@ project(first_project)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
   std_msgs
   message_generation
   dynamic_reconfigure

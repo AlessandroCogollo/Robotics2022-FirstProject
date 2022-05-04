@@ -218,6 +218,7 @@ int main(int argc, char **argv) {
 	dynamic_reconfigure::Server<first_project::ParametersConfig> server;
     server.setCallback(boost::bind(&dynamicReconfigureCallback, _1));
 
+    euler_odometry = n.advertise<nav_msgs::Odometry>("odom", 1000);
 	velocity_update = n.advertise<geometry_msgs::TwistStamped>("cmd_vel", 1000);
 	ros::Subscriber sub_wheel_states = n.subscribe("wheel_states", 1000, computeOdometry);
 

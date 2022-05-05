@@ -6,4 +6,10 @@
     <param name="encoderResolution" type="int" value="42" />
 
     <node pkg="first_project" type="computevelocity" name="computevelocity"/>
+
+    <node pkg="tf2_ros" type="static_transform_publisher" name="front_left" args="0.2 0.169 0 0 0 0 1 robot FLwheel" />
+    <node pkg="tf2_ros" type="static_transform_publisher" name="front_right" args="0.2 -0.169 0 0 0 0 1 robot FRwheel" />
+    <node pkg="tf2_ros" type="static_transform_publisher" name="rear_right" args="-0.2 -0.169 0 0 0 0 1 robot RRwheel" />
+    <node pkg="tf2_ros" type="static_transform_publisher" name="rear_left" args="-0.2 0.169 0 0 0 0 1 robot RLwheel" />
+
 </launch>

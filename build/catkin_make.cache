@@ -1,2 +1,0 @@
-
--DCATKIN_DEVEL_PREFIX=/home/frigobar123/robotics/src/first_project/devel -DCMAKE_INSTALL_PREFIX=/home/frigobar123/robotics/src/first_project/install -G Unix Makefiles

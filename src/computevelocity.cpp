@@ -176,11 +176,11 @@ void computeOdometry(const sensor_msgs::JointState::ConstPtr& msg) {
 		euler_odometry.publish(ODmsg);
 
 		// STEP 1.2.d
-		static tf2_ros::TransformBroadcaster tf2_broadcaster;
+		tf2_ros::TransformBroadcaster tf2_broadcaster;
 	    geometry_msgs::TransformStamped transformStamped;
 	    transformStamped.header.stamp = current_time;
-	    transformStamped.header.frame_id = "world";
-	    transformStamped.child_frame_id = "robot";
+	    transformStamped.header.frame_id = "odom";
+	    transformStamped.child_frame_id = "base_link";
 	    transformStamped.transform.translation.x = ODmsg.pose.pose.position.x;
 	    transformStamped.transform.translation.y = ODmsg.pose.pose.position.y;
 	    transformStamped.transform.translation.z = ODmsg.pose.pose.orientation.z;
@@ -244,6 +244,22 @@ int main(int argc, char **argv) {
 	ros::param::get("/wheelAlongX", RobParams.wheelAlongX);
 	ros::param::get("/wheelAlongY", RobParams.wheelAlongY);
 	ros::param::get("/encoderResolution", RobParams.encoderResolution);
+
+	tf2_ros::TransformBroadcaster tf2_broadcaster;
+    geometry_msgs::TransformStamped transformStamped;
+    transformStamped.header.stamp = current_time;
+    transformStamped.header.frame_id = "world";
+    transformStamped.child_frame_id = "odom";
+    transformStamped.transform.translation.x = x;
+    transformStamped.transform.translation.y = y;
+    transformStamped.transform.translation.z = 0.0;
+    tf2::Quaternion q;
+    q.setRPY(0, 0, 0.0);
+    transformStamped.transform.rotation.x = q.x();
+    transformStamped.transform.rotation.y = q.y();
+    transformStamped.transform.rotation.z = q.z();
+    transformStamped.transform.rotation.w = q.w(); 
+ 	tf2_broadcaster.sendTransform(transformStamped);
 
 	//dynamic_reconfigure for integrationMethod
 	dynamic_reconfigure::Server<first_project::ParametersConfig> IMserver;

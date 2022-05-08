@@ -14,7 +14,13 @@ XXXXXXX - Mario Cela
 **package.xml**:
 
 ## Parameters:
-name and meaning of the ROS parameters
+
+## init params
+**gearRatio**: ratio between wheels and motor
+**wheelRadius**: used to set the radius of wheels
+**wheelAlongX**: used to set the distance between the center of the robot and the middle of the space between the wheels
+**wheelAlongY**: used to set the distance between the center of the robot and wheel axis
+**encoderResolution**: used to set the resolution of the encoders
 
 ##  TF tree:
 We weren't able to complete the project with the TF tree, but we would have used a tree composed by: **world** (as the default TF), **odom**,  as the frame based on the body of the robot, and **base_link**.

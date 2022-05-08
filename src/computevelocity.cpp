@@ -6,13 +6,13 @@
 #include <ros/console.h>
 
 #include "std_msgs/String.h"
-#include <sensor_msgs/JointState.h>
-#include <geometry_msgs/TwistStamped.h>
-#include <geometry_msgs/TransformStamped.h>
-#include <nav_msgs/Odometry.h>
+#include "sensor_msgs/JointState.h"
+#include "geometry_msgs/TwistStamped.h"
+#include "geometry_msgs/TransformStamped.h"
+#include "nav_msgs/Odometry.h"
 
 #include <first_project/ParametersConfig.h>
-#include <first_project/wheels_rpm_msg.h>
+#include "first_project/wheels_rpm_msg.h"
 #include <first_project/reset.h>
 
 #include <tf2/LinearMath/Quaternion.h>
@@ -33,19 +33,9 @@ double theta = 0;
 ros::Time current_time;
 ros::Time old_time;
 
-//publishes messages that has robot's velocities informations
-ros::Publisher velocity_update;
-
-//subscribes to velocity_update to read robot's velocities messages to calcilate wheels speeds
-ros::Subscriber sub_velocity_update_for_wheels_speeds;
-
-//subscribes to velocity_update to read robot's velocities messages to apply euler algorithm in order to get the new pose
-ros::Subscriber sub_velocity_update_for_Odometry;
-
-//publishes messages that contains new robot's pose information get using euler algorithm
-ros::Publisher euler_odometry;
-
-ros::Publisher wheels_rpm;
+ros::Publisher pub_cmd_vel;
+ros::Publisher pub_odom;
+ros::Publisher pub_wheels_rpm;
 
 enum WheelsPosition {fl, fr, rl, rr};
 
@@ -85,6 +75,7 @@ bool reset_callback(first_project::reset::Request  &req,
 	x = req.new_x;
 	y = req.new_y;
 	theta = req.new_ang;
+	firstTime = true;
 
 	ROS_INFO("Position reset");
 	
@@ -93,45 +84,41 @@ bool reset_callback(first_project::reset::Request  &req,
 
 void computeOdometry(const sensor_msgs::JointState::ConstPtr& msg) {
 	
-	double wheelSpeeds[4];
-	double wheelDeltaTicks[4];
-
-	std::vector<double> robotOdometry(0,0.0);
-
-	double oldTicks[4];
-
-	ros::Time current_time = msg->header.stamp; 
-	double ticks_dt = (current_time - old_time).toSec();
+	double wheelSpeeds[4], wheelDeltaTicks[4], oldTicks[4];
 
 	if (firstTime) {
 
 		firstTime = false;
-		old_time = current_time;
+		old_time = msg->header.stamp;
 		for (int i = 0; i < 4; i++) {
 			oldTicks[i] = msg->position[i];
 		}
 
 	} else {
 
+		ros::Time current_time = msg->header.stamp; 
+		double ticks_dt = (current_time - old_time).toSec();
+		
 		for (int i = 0; i < 4; i++) {
 
 			// STEP 1.1.b
-			
 			wheelDeltaTicks[i] = msg->position[i] - oldTicks[i];
 			wheelSpeeds[i] = (wheelDeltaTicks[i] * 2 * M_PI) / (ticks_dt * RobParams.gearRatio * RobParams.encoderResolution);
-			
 			oldTicks[i] = msg->position[i];
+
 		}
+
+		old_time = current_time;
 
 		// STEP 1.1.c (and STEP 1.1.a)
 		// omega1 = wheel1 = fl | omega2 = wheel2 = fr | omega3 = wheel4 = rl | omega4 = wheel3 = rr
 
 		// vx = (omega1 + omega2 + omega3 + omega4) * r/4
-		double vx = (wheelSpeeds[fl] + wheelSpeeds[fr] + wheelSpeeds[rl] + wheelSpeeds[rr]) * RobParams.wheelRadius/4;
+		double vx = (wheelSpeeds[fl] + wheelSpeeds[fr] + wheelSpeeds[rl] + wheelSpeeds[rr]) * (RobParams.wheelRadius/4);
 		// vy = (-omega1 + omega2 + omega3 - omega4) * r/4
-		double vy = (- wheelSpeeds[fl] + wheelSpeeds[fr] + wheelSpeeds[rl] - wheelSpeeds[rr]) * RobParams.wheelRadius/4;
+		double vy = (- wheelSpeeds[fl] + wheelSpeeds[fr] + wheelSpeeds[rl] - wheelSpeeds[rr]) * (RobParams.wheelRadius/4);
 		// angular = (-omega1 + omega2 - omega3 + omega4) * r/4(lx + ly)
-		double angular = (- wheelSpeeds[fl] + wheelSpeeds[fr] - wheelSpeeds[rl] + wheelSpeeds[rr]) * RobParams.wheelRadius/ (4 * (RobParams.wheelAlongX + RobParams.wheelAlongY));
+		double angular = (- wheelSpeeds[fl] + wheelSpeeds[fr] - wheelSpeeds[rl] + wheelSpeeds[rr]) * (RobParams.wheelRadius/(4 * (RobParams.wheelAlongX + RobParams.wheelAlongY)));
 
 		// STEP 1.1.d
 		geometry_msgs::TwistStamped TSmsg;
@@ -139,7 +126,7 @@ void computeOdometry(const sensor_msgs::JointState::ConstPtr& msg) {
 		TSmsg.twist.linear.x  = vx;
 		TSmsg.twist.linear.y  = vy;
 		TSmsg.twist.angular.z = angular;
-		velocity_update.publish(TSmsg);
+		pub_cmd_vel.publish(TSmsg);
 
 		// STEP 1.2.a
 		double v = sqrt(pow(vx, 2) + pow(vy, 2));
@@ -173,30 +160,12 @@ void computeOdometry(const sensor_msgs::JointState::ConstPtr& msg) {
 		ODmsg.pose.pose.position.x = x_after_dt;
 		ODmsg.pose.pose.position.y = y_after_dt;
 		ODmsg.pose.pose.orientation.z = theta_after_dt;
-		euler_odometry.publish(ODmsg);
-
-		// STEP 1.2.d
-		tf2_ros::TransformBroadcaster tf2_broadcaster;
-	    geometry_msgs::TransformStamped transformStamped;
-	    transformStamped.header.stamp = current_time;
-	    transformStamped.header.frame_id = "odom";
-	    transformStamped.child_frame_id = "base_link";
-	    transformStamped.transform.translation.x = ODmsg.pose.pose.position.x;
-	    transformStamped.transform.translation.y = ODmsg.pose.pose.position.y;
-	    transformStamped.transform.translation.z = ODmsg.pose.pose.orientation.z;
-	    tf2::Quaternion q;
-	    q.setRPY(0, 0, ODmsg.pose.pose.orientation.z);
-	    transformStamped.transform.rotation.x = q.x();
-	    transformStamped.transform.rotation.y = q.y();
-	    transformStamped.transform.rotation.z = q.z();
-	    transformStamped.transform.rotation.w = q.w(); 
-	 	tf2_broadcaster.sendTransform(transformStamped);
+		pub_odom.publish(ODmsg);
 
 		//updating variables for next use
 		x = x_after_dt;
 		y = y_after_dt;
 		theta = theta_after_dt;
-		old_time = current_time;
 	}
 };
 
@@ -209,18 +178,18 @@ void computeControl(const geometry_msgs::TwistStamped::ConstPtr& msg) {
 
 	// STEP 2.1 calculating wheels' velocities
 	//wheel 1
-	double fl_wheel_velocity = (1/RobParams.wheelRadius) * ((- RobParams.wheelAlongX - RobParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x - robot_linear_velocity_y);
+	double fl_wheel_velocity = (1/RobParams.wheelRadius) * (((-RobParams.wheelAlongX-RobParams.wheelAlongY) * robot_angular_velocity_z) + robot_linear_velocity_x - robot_linear_velocity_y);
 	//wheel 2
-	double fr_wheel_velocity = (1/RobParams.wheelRadius) * ((RobParams.wheelAlongX + RobParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x + robot_linear_velocity_y);
+	double fr_wheel_velocity = (1/RobParams.wheelRadius) * (((RobParams.wheelAlongX+RobParams.wheelAlongY) * robot_angular_velocity_z) + robot_linear_velocity_x + robot_linear_velocity_y);
 	//wheel 3
-	double rr_wheel_velocity = (1/RobParams.wheelRadius) * ((RobParams.wheelAlongX + RobParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x - robot_linear_velocity_y);
+	double rr_wheel_velocity = (1/RobParams.wheelRadius) * (((RobParams.wheelAlongX+RobParams.wheelAlongY) * robot_angular_velocity_z) + robot_linear_velocity_x - robot_linear_velocity_y);
 	//wheel 4
-	double rl_wheel_velocity = (1/RobParams.wheelRadius) * ((- RobParams.wheelAlongX - RobParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x + robot_linear_velocity_y);
+	double rl_wheel_velocity = (1/RobParams.wheelRadius) * (((-RobParams.wheelAlongX-RobParams.wheelAlongY) * robot_angular_velocity_z) + robot_linear_velocity_x + robot_linear_velocity_y);
 
-	double rpm_fl = (fl_wheel_velocity * RobParams.gearRatio * 60)/(2*M_PI);
-	double rpm_fr = (fr_wheel_velocity * RobParams.gearRatio * 60)/(2*M_PI);
-	double rpm_rr = (rr_wheel_velocity * RobParams.gearRatio * 60)/(2*M_PI);
-	double rpm_rl = (rl_wheel_velocity * RobParams.gearRatio * 60)/(2*M_PI);
+	double rpm_fl = (fl_wheel_velocity * 60)/(2*M_PI);
+	double rpm_fr = (fr_wheel_velocity * 60)/(2*M_PI);
+	double rpm_rr = (rr_wheel_velocity * 60)/(2*M_PI);
+	double rpm_rl = (rl_wheel_velocity * 60)/(2*M_PI);
 
 	// STEP 2.2 (and STEP 2.3) creating the message that will be published in wheels_rpm topic
 	first_project::wheels_rpm_msg msg_to_publish;
@@ -229,9 +198,7 @@ void computeControl(const geometry_msgs::TwistStamped::ConstPtr& msg) {
 	msg_to_publish.rpm_fr = rpm_fr;
 	msg_to_publish.rpm_rr = rpm_rr;
 	msg_to_publish.rpm_rl = rpm_rl;
-
-	//publishing the message
-	wheels_rpm.publish(msg_to_publish);
+	pub_wheels_rpm.publish(msg_to_publish);
 }
 
 int main(int argc, char **argv) {
@@ -245,33 +212,17 @@ int main(int argc, char **argv) {
 	ros::param::get("/wheelAlongY", RobParams.wheelAlongY);
 	ros::param::get("/encoderResolution", RobParams.encoderResolution);
 
-	tf2_ros::TransformBroadcaster tf2_broadcaster;
-    geometry_msgs::TransformStamped transformStamped;
-    transformStamped.header.stamp = current_time;
-    transformStamped.header.frame_id = "world";
-    transformStamped.child_frame_id = "odom";
-    transformStamped.transform.translation.x = x;
-    transformStamped.transform.translation.y = y;
-    transformStamped.transform.translation.z = 0.0;
-    tf2::Quaternion q;
-    q.setRPY(0, 0, 0.0);
-    transformStamped.transform.rotation.x = q.x();
-    transformStamped.transform.rotation.y = q.y();
-    transformStamped.transform.rotation.z = q.z();
-    transformStamped.transform.rotation.w = q.w(); 
- 	tf2_broadcaster.sendTransform(transformStamped);
-
-	//dynamic_reconfigure for integrationMethod
+	//dynamic_reconfigure for integrationMethod && parameters
 	dynamic_reconfigure::Server<first_project::ParametersConfig> IMserver;
     IMserver.setCallback(boost::bind(&IMreconfigure, &integrationMethod, _1));
 
-    euler_odometry = n.advertise<nav_msgs::Odometry>("odom", 1000);
-	velocity_update = n.advertise<geometry_msgs::TwistStamped>("cmd_vel", 1000);
+	pub_odom = n.advertise<nav_msgs::Odometry>("odom", 1000);
+	pub_cmd_vel = n.advertise<geometry_msgs::TwistStamped>("cmd_vel", 1000);
 	ros::Subscriber sub_wheel_states = n.subscribe("wheel_states", 1000, computeOdometry);
 
 	//subscribing to cmd_vel topic, where the velocity_update publishes. Callback function will calculate wheels velocities
-	wheels_rpm = n.advertise<first_project::wheels_rpm_msg>("wheel_rpm", 1000);
-	ros::Subscriber sub_velocity_update_for_wheels_speeds = n.subscribe("cmd_vel", 1000, computeControl);
+	pub_wheels_rpm = n.advertise<first_project::wheels_rpm_msg>("wheels_rpm", 1000);
+	ros::Subscriber sub_cmd_vel = n.subscribe("cmd_vel", 1000, computeControl);
 
 	//defining reset service handler
   	ros::ServiceServer service = n.advertiseService<first_project::reset::Request, 
@@ -285,7 +236,6 @@ int main(int argc, char **argv) {
 	    loop_rate.sleep();
 	
 	}
-	
 	
 	return 0;
 }

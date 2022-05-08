@@ -6,9 +6,7 @@ project(first_project)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
-  tf2
   tf2_ros
-  tf2_geometry_msgs
   std_msgs
   message_generation
   dynamic_reconfigure
@@ -38,6 +36,11 @@ catkin_package(CATKIN_DEPENDS message_runtime)
 include_directories(include ${catkin_INCLUDE_DIRS})
 
 add_executable(computevelocity src/computevelocity.cpp)
-add_dependencies(computevelocity ${PROJECT_NAME}_gencfg)
-add_dependencies(computevelocity ${catkin_EXPORTED_TARGETS})
+
+add_dependencies(
+  computevelocity
+  ${PROJECT_NAME}_gencfg
+  ${PROJECT_NAME}_generate_messages
+  ${catkin_EXPORTED_TARGETS}
+)
 target_link_libraries(computevelocity ${catkin_LIBRARIES})

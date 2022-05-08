@@ -30,9 +30,6 @@ double x = 0;
 double y = 0;
 double theta = 0;
 
-double maxPoseError = 0.1;
-double maxCalibrationChange = 0.5;
-
 ros::Time current_time;
 ros::Time old_time;
 
@@ -96,12 +93,12 @@ bool reset_callback(first_project::reset::Request  &req,
 
 void computeOdometry(const sensor_msgs::JointState::ConstPtr& msg) {
 	
-	double wheelSpeeds[3];
-	double wheelDeltaTicks[3];
+	double wheelSpeeds[4];
+	double wheelDeltaTicks[4];
 
 	std::vector<double> robotOdometry(0,0.0);
 
-	double oldTicks[3];
+	double oldTicks[4];
 
 	ros::Time current_time = msg->header.stamp; 
 	double ticks_dt = (current_time - old_time).toSec();
@@ -220,10 +217,10 @@ void computeControl(const geometry_msgs::TwistStamped::ConstPtr& msg) {
 	//wheel 4
 	double rl_wheel_velocity = (1/RobParams.wheelRadius) * ((- RobParams.wheelAlongX - RobParams.wheelAlongY) * robot_angular_velocity_z + robot_linear_velocity_x + robot_linear_velocity_y);
 
-	double rpm_fl = (fl_wheel_velocity * RobotParams.gearRatio * 60)/(2*M_PI);
-	double rpm_fr = (fr_wheel_velocity * RobotParams.gearRatio * 60)/(2*M_PI);
-	double rpm_rr = (rr_wheel_velocity * RobotParams.gearRatio * 60)/(2*M_PI);
-	double rpm_rl = (rl_wheel_velocity * RobotParams.gearRatio * 60)/(2*M_PI);
+	double rpm_fl = (fl_wheel_velocity * RobParams.gearRatio * 60)/(2*M_PI);
+	double rpm_fr = (fr_wheel_velocity * RobParams.gearRatio * 60)/(2*M_PI);
+	double rpm_rr = (rr_wheel_velocity * RobParams.gearRatio * 60)/(2*M_PI);
+	double rpm_rl = (rl_wheel_velocity * RobParams.gearRatio * 60)/(2*M_PI);
 
 	// STEP 2.2 (and STEP 2.3) creating the message that will be published in wheels_rpm topic
 	first_project::wheels_rpm_msg msg_to_publish;
@@ -259,8 +256,6 @@ int main(int argc, char **argv) {
 	//subscribing to cmd_vel topic, where the velocity_update publishes. Callback function will calculate wheels velocities
 	wheels_rpm = n.advertise<first_project::wheels_rpm_msg>("wheel_rpm", 1000);
 	ros::Subscriber sub_velocity_update_for_wheels_speeds = n.subscribe("cmd_vel", 1000, computeControl);
-
-	ros::Subscriber sub_robot_pose = n.advertise<geometry_msgs::PoseStamped>("/robot/pose", 1000, parametersCalibration)
 
 	//defining reset service handler
   	ros::ServiceServer service = n.advertiseService<first_project::reset::Request, 
